@@ -1,8 +1,9 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const { pool } = require("./db");
+// const { pool } = require("./db");
 const passport = require("passport");
 const session = require("express-session");
+const { User } = require("./User");
 
 const app = express();
 
@@ -46,64 +47,90 @@ app.get("/logout", (req, res) => {
 });
 
 app.post("/register", async (req, res) => {
-  console.log(req.body);
-
-  let { name, email, password, password2 } = req.body;
-  let errors = [];
-
-  if (!name || !email || !password || !password2) {
-    errors.push({ msg1: "Please enter all fields." });
-  }
-
-  if (password.length < 6) {
-    errors.push({ msg2: "Password must be at least six characters long." });
-  }
+  const { name, email, password, password2 } = req.body;
 
   if (password !== password2) {
-    errors.push({ msg3: "Passwords do not match." });
-  }
-
-  if (errors.length > 0) {
-    // res.render('Something went wrong.');
-    res.json(errors);
+    return res.json({ msg: "Passwords did not match." });
   } else {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    pool.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email],
-      (error, response) => {
-        if (error) {
-          console.log(error);
-        }
-        console.log(response.rows);
+    try {
+      const existingUser = await User.findOne({
+        where: { email: email },
+      });
 
-        if (response.rows.length > 0) {
-          return res.send("Email already registered.");
-        } else {
-          pool.query(
-            `INSERT INTO users (name,email,password) VALUES ($1, $2, $3) RETURNING id, password`,
-            [name, email, hashedPassword],
-            (error, resp) => {
-              if (error) {
-                console.log(error);
-              }
+      if (existingUser) {
+        return res.json({ msg: "Email already exists." });
+      } else {
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = await User.create({
+          name,
+          email,
+          password: hashedPassword,
+        });
 
-              console.log(resp.rows);
-              res.redirect("/login");
-            }
-          );
-        }
+        return res.json(user);
       }
-    );
+    } catch (error) {
+      console.log(error);
+      return res.json(error);
+    }
   }
 });
 
+// app.post("/register", async (req, res) => {
+//   console.log(req.body);
+
+//   let { name, email, password, password2 } = req.body;
+//   let errors = [];
+
+//   if (!name || !email || !password || !password2) {
+//     errors.push({ msg1: "Please enter all fields." });
+//   }
+
+//   if (password.length < 6) {
+//     errors.push({ msg2: "Password must be at least six characters long." });
+//   }
+
+//   if (password !== password2) {
+//     errors.push({ msg3: "Passwords do not match." });
+//   }
+
+//   if (errors.length > 0) {
+//     // res.render('Something went wrong.');
+//     res.json(errors);
+//   } else {
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     pool.query(
+//       `SELECT * FROM users WHERE email = $1`,
+//       [email],
+//       (error, response) => {
+//         if (error) {
+//           console.log(error);
+//         }
+//         console.log(response.rows);
+
+//         if (response.rows.length > 0) {
+//           return res.send("Email already registered.");
+//         } else {
+//           pool.query(
+//             `INSERT INTO users (name,email,password) VALUES ($1, $2, $3) RETURNING id, password`,
+//             [name, email, hashedPassword],
+//             (error, resp) => {
+//               if (error) {
+//                 console.log(error);
+//               }
+
+//               console.log(resp.rows);
+//               res.redirect("/login");
+//             }
+//           );
+//         }
+//       }
+//     );
+//   }
+// });
+
 app.post(
   "/login",
-  (req, res, next) => {
-    console.log(req.body);
-    next();
-  },
   passport.authenticate("local", {
     successRedirect: "/dashboard",
     failureRedirect: "/login",
@@ -111,7 +138,6 @@ app.post(
 );
 
 function checkAuthenticated(req, res, next) {
-  console.log(req.isAuthenticated());
   if (req.isAuthenticated()) {
     res.redirect("/dashboard");
   }

@@ -9,7 +9,7 @@ const { Sequelize } = require("sequelize");
 // module.exports = { pool };
 
 const sequelize = new Sequelize(
-  "postgres://rupakdey:123456@localhost:5432/nodelogin"
+  `postgres://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_DATABASE}`
 );
 
 sequelize

@@ -4,21 +4,37 @@ const bcrypt = require("bcryptjs");
 const passport = require("passport");
 const session = require("express-session");
 const { User } = require("./User");
+const db = require("./db");
+const sequelizeStore = require("connect-session-sequelize")(session.Store);
 
 const app = express();
+
+const SESSION_LIFETIME = 1000 * 60 * 60;
+const NODE_ENV = "development";
 
 const PORT = process.env.PORT || 5000;
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+const sessionStore = new sequelizeStore({ db, expiration: 1000 * 60 });
+
 app.use(
   session({
+    name: "rupakdey",
     secret: process.env.secret,
+    store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      maxAge: SESSION_LIFETIME,
+      sameSite: true,
+      secure: NODE_ENV === "production",
+    },
   })
 );
+
+sessionStore.sync();
 
 require("./passportSetup")(passport);
 
@@ -34,10 +50,11 @@ app.get("/register", checkAuthenticated, (req, res) => {
 });
 
 app.get("/login", checkAuthenticated, (req, res) => {
-  res.send("User is loggin in here.");
+  res.send("User is logging in here.");
 });
 
-app.get("/dashboard", checkNotAuthenticated, (req, res) => {
+app.get("/dashboard", checkNotAuthenticated, async (req, res) => {
+  console.log("dashboard", sessionStore);
   res.send("User is logged in, user is on dashboard page.");
 });
 
@@ -138,8 +155,9 @@ app.post(
 );
 
 function checkAuthenticated(req, res, next) {
+  console.log("Session is: ", req.session);
   if (req.isAuthenticated()) {
-    res.redirect("/dashboard");
+    return res.redirect("/dashboard");
   }
   return next();
 }
